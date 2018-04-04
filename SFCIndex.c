@@ -1,7 +1,13 @@
-'''
-Author: Neeraj Sirdeshmukh
-Delft University Of Technology, Netherlands, 2018 
-'''
+
+/*
+ * Ported to C by: Vicky Vergara
+ * 
+ * Author: Neeraj Sirdeshmukh
+ * Delft University Of Technology, Netherlands, 2018 
+*/
+
+#include "math.h"
+
 import math
 from math import * 
 from pyproj import *
@@ -15,374 +21,377 @@ from psycopg2.extras import *
 from io import StringIO
 
 
-class isea_pt(object):
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-         
-class isea_geo(object):
-    # in radians
-    def __init__(self, lon, lat):
-        self.lon = lon 
-        self.lat = lat 
+struct isea_pt {
+    x double;
+    y double;
+}
 
-# Set constants
-
-M_PI = 3.14159265358979323846
+struct isea_geo {
+        double lon;
+        double lat;
+}
 
 
-E = 52.62263186
-F = 10.81231696
+//  Set constants
+#ifndef M_PI
+#define M_PI (3.14159265358979323846)
+#endif
 
-DEG60 =1.04719755119659774614
-DEG120= 2.09439510239319549229
-DEG72 =1.25663706143591729537
-DEG90 =1.57079632679489661922
-DEG144= 2.51327412287183459075
-DEG36 =0.62831853071795864768
-DEG108 =1.88495559215387594306
-DEG180= M_PI
+double E = 52.62263186;
+double F = 10.81231696
 
-ISEA_SCALE=0.8301572857837594396028083
+double DEG180 =M_PI;
+double DEG90  =M_PI_2;
+double DEG60  =M_PI / 3.0;
+double DEG120 =M_PI * 2.0 / 3.0;
+double DEG72  =1.25663706143591729537;
+double DEG144 =2.51327412287183459075;
+double DEG36  =0.62831853071795864768;
+double DEG108 =1.88495559215387594306;
 
-# Degrees: 26.565051177065900134
-V_LAT = 0.46364760899944494524
+double ISEA_SCALE =0.8301572857837594396028083;
 
-RAD2DEG = 180.0/M_PI
-DEG2RAD = M_PI/180.0
+//  Degrees: 26.565051177065900134
+double V_LAT = 0.46364760899944494524;
 
-# Icosahedron constants, radians
+double RAD2DEG = 180.0 * M_1_PI;
+double DEG2RAD = M_PI / 180.0;
 
-g =37.37736814 * DEG2RAD
-G =36.0 * DEG2RAD
-theta =30.0 * DEG2RAD
+//  Icosahedron constants, radians
 
-# vertices of triangles
-vertex = [isea_geo(0.0,DEG90),
-        isea_geo(DEG180,V_LAT),
-        isea_geo(-DEG108,V_LAT),
-        isea_geo(-DEG36,V_LAT),
-        isea_geo(DEG36,V_LAT),
-        isea_geo(DEG108,V_LAT),
-        isea_geo(-DEG144,-V_LAT),
-        isea_geo(-DEG72,-V_LAT),
-        isea_geo(0.0,-V_LAT),
-        isea_geo(DEG72,-V_LAT),
-        isea_geo(DEG144,-V_LAT),
-        isea_geo(0.0,-DEG90)
-        ]
+double g = 37.37736814 * DEG2RAD;
+double G = 36.0 * DEG2RAD;
+double theta = 30.0 * DEG2RAD;
 
-E_RAD =0.91843818702186776133
-F_RAD =0.18871053072122403508
+//  vertices of triangles
+struct isea_geo vertex[12] = {
+    {0.0, DEG90},
+    {DEG180, V_LAT},
+    {-DEG108, V_LAT},
+    {-DEG36, V_LAT},
+    {DEG36, V_LAT},
+    {DEG108, V_LAT},
+    {-DEG144, -V_LAT},
+    {-DEG72, -V_LAT},
+    {0.0, -V_LAT},
+    {DEG72, -V_LAT},
+    {DEG144, -V_LAT},
+    {0.0, -DEG90}
+};
+
+double E_RAD =0.91843818702186776133;
+double F_RAD =0.18871053072122403508;
 
 
-# icosahedron triangle centers 
-icostriangles = [
-    isea_geo(0.0, 0.0),
-    isea_geo(-DEG144, E_RAD),
-    isea_geo(-DEG72, E_RAD),
-    isea_geo(0.0, E_RAD),
-    isea_geo(DEG72, E_RAD),
-    isea_geo(DEG144, E_RAD),
-    isea_geo(-DEG144, F_RAD),
-    isea_geo(-DEG72, F_RAD),
-    isea_geo(0.0, F_RAD),
-    isea_geo(DEG72, F_RAD),
-    isea_geo(DEG144, F_RAD),
-    isea_geo(-DEG108, -F_RAD),
-    isea_geo(-DEG36, -F_RAD),
-    isea_geo(DEG36, -F_RAD),
-    isea_geo(DEG108, -F_RAD),
-    isea_geo(DEG180, -F_RAD),
-    isea_geo(-DEG108, -E_RAD),
-    isea_geo(-DEG36, -E_RAD),
-    isea_geo(DEG36, -E_RAD),
-    isea_geo(DEG108, -E_RAD),
-    isea_geo(DEG180, -E_RAD)
+//  icosahedron triangle centers 
+struct isea_geo icostriangles[21] = {
+    {0.0, 0.0},
+    {-DEG144, E_RAD},
+    {-DEG72, E_RAD},
+    {0.0, E_RAD},
+    {DEG72, E_RAD},
+    {DEG144, E_RAD},
+    {-DEG144, F_RAD},
+    {-DEG72, F_RAD},
+    {0.0, F_RAD},
+    {DEG72, F_RAD},
+    {DEG144, F_RAD},
+    {-DEG108, -F_RAD},
+    {-DEG36, -F_RAD},
+    {DEG36, -F_RAD},
+    {DEG108, -F_RAD},
+    {DEG180, -F_RAD},
+    {-DEG108, -E_RAD},
+    {-DEG36, -E_RAD},
+    {DEG36, -E_RAD},
+    {DEG108, -E_RAD},
+    {DEG180, -E_RAD}
+};
+
+// Parameters taken from Snyder (1992)
+double TABLE_G = 0.6615845383;
+double TABLE_H = 0.1909830056;
+
+double RPRIME = 0.91038328153090290025;
+
+
+int tri_v1[21] = {0, 0, 0, 0, 0, 0, 6, 7, 8, 9, 10, 2, 3, 4, 5, 1, 11, 11, 11, 11, 11};
+
     
-    ]
+double NEWORIGX = -0.6022955012659694; //  TABLE_G * (-1) #old: 
+double NEWORIGY = -0.3477354703761901; //  TABLE_H * (-2) #old: 
 
-# Parameters taken from Snyder (1992)
-TABLE_G = 0.6615845383
-TABLE_H = 0.1909830056
+double TANTHETA = tan(theta);
+double COTTHETA = 1.0 / TANTHETA;
 
-RPRIME = 0.91038328153090290025
+double SINUPPERG = sin(G);
+double COSUPPERG = cos(G);
 
+double COSLOWERG = cos(g);
+double TANLOWERG = tan(g) ;
 
-tri_v1 = [0, 0, 0, 0, 0, 0, 6, 7, 8, 9, 10, 2, 3, 4, 5, 1, 11, 11, 11, 11, 11]
+//  parameters for WGS84 ellipsoid
 
-    
-NEWORIGX = -0.6022955012659694 # TABLE_G * (-1) #old: 
-NEWORIGY = -0.3477354703761901 # TABLE_H * (-2) #old: 
-
-TANTHETA = tan(theta)
-COTTHETA = 1.0 / TANTHETA
-
-SINUPPERG = sin(G)
-COSUPPERG = cos(G)
-
-COSLOWERG = cos(g)
-TANLOWERG = tan(g) 
-
-# parameters for WGS84 ellipsoid
-
-R = 6378137 # semi-major axis, meters 
-b = 6356752.314245 # semi-minor axis, meters
-flattening =  1/298.257223563
+double R = 6378137 //  semi-major axis, meters 
+double b = 6356752.314245 //  semi-minor axis, meters
+double flattening =  1 / 298.257223563
 
 
-def az_adjustment(triangle):
-    v = vertex[tri_v1[triangle]] # vertex ID of triangle
-    c = icostriangles[triangle] # center of triangle
+double az_adjustment(int triangle) {
+    isea_geo v = vertex[tri_v1[triangle]]; //  vertex ID of triangle
+    isea_geo c = icostriangles[triangle];  //  center of triangle
 
 
-    # Azimuth from vertex to center of triangle
-    adj = atan2(cos(v.lat) * sin(v.lon - c.lon),cos(c.lat) * sin(v.lat)- sin(c.lat) * cos(v.lat) * cos(v.lon - c.lon))
+    //  Azimuth from vertex to center of triangle
+    adj = atan2(cos(v.lat) * sin(v.lon - c.lon), cos(c.lat) * sin(v.lat) - sin(c.lat) * cos(v.lat) * cos(v.lon - c.lon));
 
-    return adj
+    return adj;
+}
   
-def isea_snyder_forward(ll):
-       
-    for i in range(1,21):
+//  // Convert triangle face number to rhombus face number
+int convert_face_from_triange_to_rhombus(int face) {    
+    if (face == 1 or face == 6)
+        return  0;
+    else if (face == 11 or face == 16)
+        return  1;
+    else if (face == 2 or face == 7)
+        return  2;
+    else if (face == 12 or face == 17)
+        return  3;
+    else if (face == 3 or face == 8)
+        return  4;
+    else if (face == 13 or face == 18)
+        return  5;
+    else if (face == 4 or face == 9)
+        return  6;
+    else if (face == 14 or face == 19)
+        return  7;
+    else if (face == 5 or face == 10)
+        return  8;
+    return  9;
+}
 
-        center = icostriangles[i];
 
-        # step 1 , returns z(scaled meters) and Az (in radians) 
+int isea_snyder_forward(isea_geo ll, isea_pt *out) {
        
-        z, Az = vincentyInverse(center.lat, center.lon, ll.lat, ll.lon)
+    for (int i = 1; i < 21; ++i) {
+
+        isea_geo center = icostriangles[i];
+
+        //  step 1 , returns z(scaled meters) and Az (in radians) 
+       
+        double z;
+        double Az;
+        vincentyInverse(center, ll, ll.lon, &z, &Az);
         
-        if (Az > M_PI):
-            Az = Az - (2*M_PI)
+        if (Az > M_PI) Az = Az - (2 * M_PI);
        
-        # not on this triangle                        
-        if (z > g):
-            continue
+        //  not on this triangle                        
+        if (z > g) continue;
       
         
-        # step 2 
+        //  step 2 
 
-        # This calculates a vertex coordinate whose azimuth is going to be assigned 0
-        az_offset = az_adjustment(i)
+        //  This calculates a vertex coordinate whose azimuth is going to be assigned 0
+        az_offset = az_adjustment(i);
 
 
-        # This gives that vertex an azimuth of 0. For south pointing triangles the range of azimuths changes
-        # from [-3.14 - 3.14] to [-6.28 0].
-        # For north pointing triangles, makes no difference. 
+        //  This gives that vertex an azimuth of 0. For south pointing triangles the range of azimuths changes
+        //  from [-3.14 - 3.14] to [-6.28 0].
+        //  For north pointing triangles, makes no difference. 
         
-        Az -= az_offset 
+        Az -= az_offset ;
         
          
-        # Adjust Az to fall between 0 and 120 degrees, record adjustment amount
+        //  Adjust Az to fall between 0 and 120 degrees, record adjustment amount
 
         Az_adjust_multiples = 0;
-        while Az < 0.0:
-            Az += DEG120
-            Az_adjust_multiples-=1
+        while (Az < 0.0) {
+            Az += DEG120;
+            Az_adjust_multiples-=1;
+        }
 
-        while (Az > DEG120):
-            Az -= DEG120
-            Az_adjust_multiples+=1
-
-
-        # Calculate q from eq 9. 
-        
-        q = atan(TANLOWERG/(cos(Az) + (sin(Az)*COTTHETA)))
-
-        # not in this triangle 
-        if (z > q):
-            continue
-        
-        # Apply equations 5-8 and 10-12 in order
-        # eq 6
-        
-        H = acos((sin(Az) * SINUPPERG * COSLOWERG) - (cos(Az) * COSUPPERG))
+        while (Az > DEG120) {
+            Az -= DEG120;
+            Az_adjust_multiples+=1;
+        }
 
 
-        #eq 7
+        //  Calculate q from eq 9. 
         
-        AG = (Az + G + H - DEG180)
+        double q = atan(TANLOWERG/(cos(Az) + (sin(Az)*COTTHETA)));
 
-        # eq 8 
+        //  not in this triangle 
+        if (z > q) continue;
         
-        Azprime = atan2((2.0 * AG), ((RPRIME * RPRIME* TANLOWERG * TANLOWERG) - (2.0 * AG * COTTHETA)))
-
-        # eq 10
+        //  Apply equations 5-8 and 10-12 in order
+        //  eq 6
         
-        dprime = (RPRIME * TANLOWERG) / (cos(Azprime) + (sin(Azprime) * COTTHETA))
-        
-        # eq 11
-        
-        f = dprime / (2.0 * RPRIME * sin(q / 2.0))
-
-        # eq 12
-        
-        rho = 2.0 * RPRIME * f * sin(z / 2.0)
+        double H = acos((sin(Az) * SINUPPERG * COSLOWERG) - (cos(Az) * COSUPPERG));
 
 
-        #add back the same 120 degree multiple adjustment from step 2 to Azprime
+        // eq 7
         
-        Azprime += DEG120 * Az_adjust_multiples
-        
-        # calculate rectangular coordinates
-        
-        x = rho * sin(Azprime)
-        y = rho * cos(Azprime)
+        double AG = (Az + G + H - DEG180);
 
-        out = isea_pt(x,y)
+        //  eq 8 
         
-        return out, i
+        double Azprime = atan2((2.0 * AG), ((RPRIME * RPRIME* TANLOWERG * TANLOWERG) - (2.0 * AG * COTTHETA)));
 
-def computeMorton2D(longitude, latitude, res):
+        //  eq 10
+        
+        double dprime = (RPRIME * TANLOWERG) / (cos(Azprime) + (sin(Azprime) * COTTHETA));
+        
+        //  eq 11
+        
+        double f = dprime / (2.0 * RPRIME * sin(q / 2.0));
+
+        //  eq 12
+        
+        double rho = 2.0 * RPRIME * f * sin(z / 2.0);
+
+
+        // add back the same 120 degree multiple adjustment from step 2 to Azprime
+        
+        Azprime += DEG120 * Az_adjust_multiples;
+        
+        //  calculate rectangular coordinates
+        
+        double x = rho * sin(Azprime);
+        double y = rho * cos(Azprime)
+
+        *out = {x, y};
+        
+        return  i;
+    };
+};
+
+/*
+ * longitude and latitude in degrees
+ */
+void  computeMorton2D(double longitude, double latitude, res) {
     
-    point = isea_geo(longitude * DEG2RAD,  latitude * DEG2RAD)
+    isea_geo point = isea_geo(longitude * DEG2RAD,  latitude * DEG2RAD);
     
-    # out contains coordinates from center of triangle 
-    out, face = isea_snyder_forward(point)
+    // out contains coordinates from center of triangle 
+    isea_pt out;
+    face = isea_snyder_forward(point, &out);
     
-    # Find new coordinates of point from lower left/upper left origin
+    // Find new coordinates of point from lower left/upper left origin
 
-    newPointX = 0
-    newPointY= 0
+    newPointX = 0;
+    newPointY = 0;
     
-    if ((face >= 1 and face <=5) or (face>=11 and face <=15)):
-        newPointX = out.x - NEWORIGX
-        newPointY = out.y - NEWORIGY
-    else:
-        newPointX = (out.x + NEWORIGX) * (-1)
-        newPointY = (out.y - NEWORIGY) * (-1)
+    if ((face >= 1 and face <=5) or (face>=11 and face <=15)) {
+        newPointX = out.x - NEWORIGX;
+        newPointY = out.y - NEWORIGY;
+    } else {
+        newPointX = (out.x + NEWORIGX) * (-1);
+        newPointY = (out.y - NEWORIGY) * (-1);
+    }
 
 
-    # Rotate the axes, round down to nearest integer since addressing begins at 0
-    # Scale coordinates of all dimensions to match resolution of DGGS
+    // Rotate the axes, round down to nearest integer since addressing begins at 0
+    // Scale coordinates of all dimensions to match resolution of DGGS
 
-    origX = ((newPointX - ((1/(sqrt(3))) * newPointY)) /(NEWORIGX *(-2))) * totRange
-    origY = ((newPointX + ((1/(sqrt(3))) * newPointY))/(NEWORIGX *(-2))) * totRange
+    double origX = ((newPointX - ((1/ (sqrt(3))) * newPointY)) / (NEWORIGX *(-2))) * totRange;
+    double origY = ((newPointX + ((1/ (sqrt(3))) * newPointY)) / (NEWORIGX *(-2))) * totRange;
          
 
-    rotatedX = int(origX)
-    rotatedY = int(origY) 
+    int rotatedX = int(origX);
+    int rotatedY = int(origY) ;
     
    
-    # Convert to binary
+    // TODO I dont understand what is happening here
+    // Convert to binary
     
-    xBin = ('{0:0' + str(res) + 'b}').format(rotatedX)
-    yBin = ('{0:0' + str(res) + 'b}').format(rotatedY)
+    xBin = ('{0:0' + str(res) + 'b}').format(rotatedX);
+    yBin = ('{0:0' + str(res) + 'b}').format(rotatedY);
     
-    # Convert binary to int and use Morton formula
+    // Convert binary to int and use Morton formula
     
-    morton = ('{0:0' + str(res) + '}').format(2 * int(yBin) + int(xBin))
+    morton = ('{0:0' + str(res) + '}').format(2 * int(yBin) + int(xBin));
     
     
-    # Convert triangle face number to rhombus face number
-    
-    if face == 1 or face == 6:
-        face = 0
-    elif face == 11 or face == 16:
-        face = 1
-    elif face == 2 or face == 7:
-        face = 2
-    elif face == 12 or face == 17:
-        face = 3
-    elif face == 3 or face == 8:
-        face = 4
-    elif face == 13 or face == 18:
-        face = 5
-    elif face == 4 or face == 9:
-        face = 6
-    elif face == 14 or face == 19:
-        face = 7
-    elif face == 5 or face == 10:
-        face = 8
-    else:
-        face = 9
+    // Convert triangle face number to rhombus face number
+    face =  convert_face_from_triange_to_rhombus(face);
 
-    fullCode = str(face) + morton
+    fullCode = str(face) + morton;
     
-    return fullCode
+    return fullCode;
+    }
 
 
-def computeMorton3D(longitude, latitude, height, hrange, res):
+void computeMorton3D(double longitude, double latitude, double height, double hrange, int res) {
     
-    point = isea_geo(longitude * DEG2RAD,  latitude * DEG2RAD)
-    #out contains coordinates from center of triangle 
-    out, face = isea_snyder_forward(point)
+    isea_geo point = isea_geo(longitude * DEG2RAD,  latitude * DEG2RAD);
+    // out contains coordinates from center of triangle 
+    isea_pt out;
+    face = isea_snyder_forward(point, &out);
     
-    # Find new coordinates of point from lower left/upper left origin
+    // Find new coordinates of point from lower left/upper left origin
 
-    newPointX = 0
-    newPointY= 0
+    double newPointX = 0;
+    double newPointY= 0;
     
-    if ((face >= 1 and face <=5) or (face>=11 and face <=15)):
-        newPointX = out.x - NEWORIGX
-        newPointY = out.y - NEWORIGY
-    else:
-        newPointX = (out.x + NEWORIGX) * (-1)
-        newPointY = (out.y - NEWORIGY) * (-1)
+    if ((face >= 1 and face <=5) or (face>=11 and face <=15)) {
+        newPointX = out.x - NEWORIGX;
+        newPointY = out.y - NEWORIGY;
+    } else {
+        newPointX = (out.x + NEWORIGX) * (-1);
+        newPointY = (out.y - NEWORIGY) * (-1);
+    }
 
 
-    # Rotate the axes, round down to nearest integer since addressing begins at 0
-    # Scale coordinates of all dimensions to match resolution of DGGS
+    // Rotate the axes, round down to nearest integer since addressing begins at 0
+    // Scale coordinates of all dimensions to match resolution of DGGS
 
 
-    origX = ((newPointX - ((1/(sqrt(3))) * newPointY)) /(NEWORIGX *(-2))) * totRange
-    origY = ((newPointX + ((1/(sqrt(3))) * newPointY))/(NEWORIGX *(-2))) * totRange
-    Z = 0
-    if height <=0:
-        Z = ((hrange - ((-1) * height)) / (hrange * 2)) * totRange
-    else:
-        Z = ((hrange + height) / (hrange * 2)) * totRange
+    double origX = ((newPointX - ((1/(sqrt(3))) * newPointY)) / (NEWORIGX *(-2))) * totRange;
+    double origY = ((newPointX + ((1/(sqrt(3))) * newPointY)) / (NEWORIGX *(-2))) * totRange;
+    double Z = 0;
+
+    if (height <= 0) {
+        Z = ((hrange - ((-1) * height)) / (hrange * 2)) * totRange;
+    } else {
+        Z = ((hrange + height) / (hrange * 2)) * totRange;
+    }
       
 
-    rotatedX = int(origX)
-    rotatedY = int(origY)
-    intZ = int(Z)     
+    int rotatedX = int(origX);
+    int rotatedY = int(origY);
+    intZ = int(Z);
     
     
-    # Convert to binary
+    // TODO I dont understand what is happening here
+    // Convert to binary
     
-    xBin = ('{0:0' + str(res) + 'b}').format(rotatedX)
-    yBin = ('{0:0' + str(res) + 'b}').format(rotatedY)
-    zBin = ('{0:0' + str(res) + 'b}').format(intZ)
+    xBin = ('{0:0' + str(res) + 'b}').format(rotatedX);
+    yBin = ('{0:0' + str(res) + 'b}').format(rotatedY);
+    zBin = ('{0:0' + str(res) + 'b}').format(intZ);
     
-    # Convert binary to int and use Morton formula
+    // Convert binary to int and use Morton formula
     
-    morton = ('{0:0' + str(res) + '}').format(4 * int(zBin) + 2 * int(yBin) + int(xBin))
+    morton = ('{0:0' + str(res) + '}').format(4 * int(zBin) + 2 * int(yBin) + int(xBin));
     
     
-    # Convert triangle face number to rhombus face number
+    // Convert triangle face number to rhombus face number
+    face =  convert_face_from_triange_to_rhombus(face);
     
-    if face == 1 or face == 6:
-        face = 0
-    elif face == 11 or face == 16:
-        face = 1
-    elif face == 2 or face == 7:
-        face = 2
-    elif face == 12 or face == 17:
-        face = 3
-    elif face == 3 or face == 8:
-        face = 4
-    elif face == 13 or face == 18:
-        face = 5
-    elif face == 4 or face == 9:
-        face = 6
-    elif face == 14 or face == 19:
-        face = 7
-    elif face == 5 or face == 10:
-        face = 8
-    else:
-        face = 9
-
     fullCode =  str(face) + morton 
     
     return fullCode
+    }
+}
 
 def computeMorton4D(longitude, latitude, height, timeSec, hrange, trange, res):
     
     point = isea_geo(longitude * DEG2RAD,  latitude * DEG2RAD)
     #out contains coordinates from center of triangle 
-    out, face = isea_snyder_forward(point)
+        isea_pt out;
+    face = isea_snyder_forward(point, &out);
 
-    # Find new coordinates of point from lower left/upper left origin
+    // Find new coordinates of point from lower left/upper left origin
 
     newPointX = 0
     newPointY= 0
@@ -395,8 +404,8 @@ def computeMorton4D(longitude, latitude, height, timeSec, hrange, trange, res):
         newPointY = (out.y - NEWORIGY) * (-1)
 
 
-    # Rotate the axes, round down to nearest integer since addressing begins at 0
-    # Scale coordinates of all dimensions to match resolution of DGGS
+    // Rotate the axes, round down to nearest integer since addressing begins at 0
+    // Scale coordinates of all dimensions to match resolution of DGGS
 
     origX = ((newPointX - ((1/(sqrt(3))) * newPointY)) /(NEWORIGX *(-2))) * totRange
     origY = ((newPointX + ((1/(sqrt(3))) * newPointY))/(NEWORIGX *(-2))) * totRange
@@ -407,7 +416,7 @@ def computeMorton4D(longitude, latitude, height, timeSec, hrange, trange, res):
     else:
         Z = ((hrange + height) / (hrange * 2)) * totRange
         
-    # Subtract 18 seconds to get UTC time
+    // Subtract 18 seconds to get UTC time
     T = ((timeSec - 18)/trange) * totRange
 
 
@@ -418,7 +427,7 @@ def computeMorton4D(longitude, latitude, height, timeSec, hrange, trange, res):
     intT = int(T)
 
    
-    # Convert to binary
+    // Convert to binary
     
     xBin = ('{0:0' + str(res) + 'b}').format(rotatedX)
     yBin = ('{0:0' + str(res) + 'b}').format(rotatedY)
@@ -434,33 +443,33 @@ def computeMorton4D(longitude, latitude, height, timeSec, hrange, trange, res):
     total = tVal + zVal + yVal + xVal
     
 
-    # Convert binary to int and use Morton formula
-    # Drop 0 (if any) after face number to save 1 bit!
+    // Convert binary to int and use Morton formula
+    // Drop 0 (if any) after face number to save 1 bit!
     
     morton3D = ('{0:0' + str(res) + '}').format(4 * int(zBin) + 2 * int(yBin) + int(xBin))
     
     morton4D = ('{0:0' + str((2* res))  + '}').format(total)
 
 
-    # Convert triangle face number to rhombus face number
+    // Convert triangle face number to rhombus face number
     
     if face == 1 or face == 6:
         face = 0
-    elif face == 11 or face == 16:
+    else if face == 11 or face == 16:
         face = 1
-    elif face == 2 or face == 7:
+    else if face == 2 or face == 7:
         face = 2
-    elif face == 12 or face == 17:
+    else if face == 12 or face == 17:
         face = 3
-    elif face == 3 or face == 8:
+    else if face == 3 or face == 8:
         face = 4
-    elif face == 13 or face == 18:
+    else if face == 13 or face == 18:
         face = 5
-    elif face == 4 or face == 9:
+    else if face == 4 or face == 9:
         face = 6
-    elif face == 14 or face == 19:
+    else if face == 14 or face == 19:
         face = 7
-    elif face == 5 or face == 10:
+    else if face == 5 or face == 10:
         face = 8
     else:
         face = 9
@@ -473,17 +482,17 @@ def computeMorton4D(longitude, latitude, height, timeSec, hrange, trange, res):
 
 def decodeMortonToXY(mortonCode):
     
-    # Get face number and morton code
+    // Get face number and morton code
    
-    face = mortonCode[0] # First number indicates rhombus face!
-    morton = mortonCode[1:len(mortonCode)] # String 
+    face = mortonCode[0] // First number indicates rhombus face!
+    morton = mortonCode[1:len(mortonCode)] // String 
     res = len(morton) #discrete!
     lastDig = int(morton[-1:])
     
-    numXValues = totRange # Amount of possible X values
-    numYValues = totRange # Amount of possible Y values
+    numXValues = totRange // Amount of possible X values
+    numYValues = totRange // Amount of possible Y values
     
-    # Compute the X, Y, and Z values on rhombus... markers = middle value
+    // Compute the X, Y, and Z values on rhombus... markers = middle value
     xMarker = numXValues/2 
     yMarker = numYValues/2
     
@@ -502,7 +511,7 @@ def decodeMortonToXY(mortonCode):
             numYValues = numYValues/2
             yMarker = yMarker + numYValues/2
              
-    # Look at last digit
+    // Look at last digit
 
     if lastDig %2 ==0:
         xMarker = (xMarker - 1) 
@@ -518,20 +527,20 @@ def decodeMortonToXY(mortonCode):
 
 def decodeMortonToXYH(mortonCode):
     
-    # Get face number and Morton code
+    // Get face number and Morton code
     
-    face = mortonCode[0] # First number indicates rhombus face!
-    morton = mortonCode[1:len(mortonCode)] # String 
-    res = len(morton) # discrete!
+    face = mortonCode[0] // First number indicates rhombus face!
+    morton = mortonCode[1:len(mortonCode)] // String 
+    res = len(morton) // discrete!
     lastDig = int(morton[-1:])
     
 
     
-    numXValues = totRange # Amount of possible X values
-    numYValues = totRange # Amount of possible Y values
-    numZValues = totRange # Amount of possible Z values
+    numXValues = totRange // Amount of possible X values
+    numYValues = totRange // Amount of possible Y values
+    numZValues = totRange // Amount of possible Z values
     
-    # Compute the X, Y, and Z values on rhombus... markers = middle value
+    // Compute the X, Y, and Z values on rhombus... markers = middle value
     xMarker = numXValues/2 
     yMarker = numYValues/2
     zMarker = numZValues/2
@@ -561,9 +570,9 @@ def decodeMortonToXYH(mortonCode):
             numZValues = numZValues/2
             zMarker = zMarker + numZValues/2
              
-    # Look at last digit
+    // Look at last digit
 
-    if lastDig %2 ==0:  # 0,2
+    if lastDig %2 ==0:  // 0,2
         xMarker = (xMarker - 1)
     else:
         xMarker = (xMarker) 
@@ -584,22 +593,22 @@ def decodeMortonToXYH(mortonCode):
 def decodeMortonToXYHT(mortonCode):
     
   
-    # Get face number and morton code
+    // Get face number and morton code
     
-    face = mortonCode[0] # First number indicates rhombus face!
+    face = mortonCode[0] // First number indicates rhombus face!
 
-    morton = mortonCode[1:len(mortonCode)] # String 
+    morton = mortonCode[1:len(mortonCode)] // String 
     res = len(morton) /2
 
     lastDig = int(morton[-2:])
     
     
-    numXValues = totRange # Amount of possible X values
-    numYValues = totRange# Amount of possible Y values
-    numZValues = totRange # Amount of possible Z values
-    numTValues = totRange # Amount of possible T values
+    numXValues = totRange // Amount of possible X values
+    numYValues = totRange// Amount of possible Y values
+    numZValues = totRange // Amount of possible Z values
+    numTValues = totRange // Amount of possible T values
     
-    # Compute the X, Y, Z, and T values on rhombus... markers = middle value
+    // Compute the X, Y, Z, and T values on rhombus... markers = middle value
     xMarker = numXValues/2 
     yMarker = numYValues/2
     zMarker = numZValues/2
@@ -639,7 +648,7 @@ def decodeMortonToXYHT(mortonCode):
             tMarker = tMarker + numTValues/2       
      
 
-    # Look at last digit
+    // Look at last digit
 
     if lastDig %2 ==0:
         xMarker = (xMarker - 1) 
@@ -666,13 +675,13 @@ def decodeMortonToXYHT(mortonCode):
 
 def MortonToLatLong2D(x,y, face, res):
      
-    # Scale coordinates to scale of Cartesian system
+    // Scale coordinates to scale of Cartesian system
     
     scaledX = (x/totRange) * (-NEWORIGX *2)
     scaledY = (y/totRange)*(-NEWORIGX*2)
 
 
-    # Convert coordinates from skewed system to Cartesian system (origin at left)
+    // Convert coordinates from skewed system to Cartesian system (origin at left)
     
     a = np.array([[1,(-1/sqrt(3))], [1,(1/sqrt(3))]])
     b = np.array([scaledX,scaledY]) 
@@ -682,54 +691,54 @@ def MortonToLatLong2D(x,y, face, res):
     yCoord = x[1]
 
     
-    # Get triangle face from rhombus face based on values of y.
-    # If y is negative, triangles will be downward oriented
+    // Get triangle face from rhombus face based on values of y.
+    // If y is negative, triangles will be downward oriented
     
     if yCoord >=0:
         if (face == 0):
             face = 1
-        elif (face == 1):
+        else if (face == 1):
             face = 11
-        elif (face == 2):
+        else if (face == 2):
             face = 2
-        elif (face == 3):
+        else if (face == 3):
             face = 12
-        elif (face == 4):
+        else if (face == 4):
             face = 3
-        elif (face == 5):
+        else if (face == 5):
             face = 13
-        elif (face == 6):
+        else if (face == 6):
             face = 4
-        elif (face == 7):
+        else if (face == 7):
             face = 14
-        elif (face == 8):
+        else if (face == 8):
             face = 5
-        elif (face == 9):
+        else if (face == 9):
             face = 15
     else:
         if (face == 0):
             face = 6
-        elif (face == 1):
+        else if (face == 1):
             face = 16
-        elif (face == 2):
+        else if (face == 2):
             face = 7
-        elif (face == 3):
+        else if (face == 3):
             face = 17
-        elif (face == 4):
+        else if (face == 4):
             face = 8
-        elif (face == 5):
+        else if (face == 5):
             face = 18
-        elif (face == 6):
+        else if (face == 6):
             face = 9
-        elif (face == 7):
+        else if (face == 7):
             face = 19
-        elif (face == 8):
+        else if (face == 8):
             face = 10
-        elif (face == 9):
+        else if (face == 9):
             face = 20
 
-    # Translate coordinates to center (origin) of icosahedron triangle, 
-    # taking into account triangle orientation 
+    // Translate coordinates to center (origin) of icosahedron triangle, 
+    // taking into account triangle orientation 
     
     xOrigin = 0
     yOrigin = 0
@@ -742,15 +751,15 @@ def MortonToLatLong2D(x,y, face, res):
         yOrigin = ((-NEWORIGY) + yCoord) * (-1) 
   
 
-    # Equation 17
+    // Equation 17
     
     Azprime = atan2(xOrigin, yOrigin)
     
-    # Equation 18
+    // Equation 18
     
     rho = sqrt((pow(xOrigin,2) + pow(yOrigin,2)))
 
-    # Adjust Azprime to fall within 0 to 120 degrees
+    // Adjust Azprime to fall within 0 to 120 degrees
     
     Azprime_adjust_multiples = 0;
     while Azprime < 0.0:
@@ -763,12 +772,12 @@ def MortonToLatLong2D(x,y, face, res):
 
     AzprimeCopy = Azprime
 
-    # Equation 19
+    // Equation 19
     
     AG = (pow(RPRIME,2) * pow(TANLOWERG,2)) / (2 * ((1/(tan(Azprime))) + COTTHETA))
 
 
-    # Iteration, Azprime (plane) converges to Az (sphere)
+    // Iteration, Azprime (plane) converges to Az (sphere)
     
     for i in range(4):
     
@@ -785,27 +794,27 @@ def MortonToLatLong2D(x,y, face, res):
     Az = Azprime
  
 
-    # Equations 9-11, 23 to obtain z 
+    // Equations 9-11, 23 to obtain z 
     
     q = atan((TANLOWERG)/(cos(Az) + (sin(Az)*COTTHETA)))
 
-    # eq 10
+    // eq 10
 
     dprime = ((RPRIME * TANLOWERG) / (cos(AzprimeCopy) + (sin(AzprimeCopy) * COTTHETA)))
 
-    # eq 11
+    // eq 11
     
     f = dprime / (2.0 * RPRIME * sin(q / 2.0))
 
-    # eq 23, obtain z
+    // eq 23, obtain z
     
     z = 2 * asin((rho)/(2*RPRIME*f))
      
-    # Add back 120 degree adjustments to Az
+    // Add back 120 degree adjustments to Az
 
     Az += DEG120 * Azprime_adjust_multiples
      
-    # Adjust Az to be clockwise from north (needed for final calculation)
+    // Adjust Az to be clockwise from north (needed for final calculation)
     if (face >=1 and face<=5) or (face>=11 and face<=15):
         if (Az <0):
             Az = (M_PI - (Az * (-1))) + M_PI 
@@ -817,7 +826,7 @@ def MortonToLatLong2D(x,y, face, res):
     
     z = z * R
     
-    # triangle center
+    // triangle center
     center = icostriangles[face]
     
     lat2, lon2 = vincentyDirect(flattening, R, center.lat * RAD2DEG, center.lon * RAD2DEG, Az * RAD2DEG, z) 
@@ -826,18 +835,18 @@ def MortonToLatLong2D(x,y, face, res):
 
 def MortonToLatLong3D(x,y,h,face, res):
      
-    # Convert h/Z to height above/below ellipsoid
+    // Convert h/Z to height above/below ellipsoid
     
     height = ((-1) * hrange) + ((h / totRange) * (2 * hrange))
 
 
-    # Scale coordinates to scale of Cartesian system
+    // Scale coordinates to scale of Cartesian system
     
     scaledX = (x/totRange) * (-NEWORIGX *2)
     scaledY = (y/totRange)*(-NEWORIGX*2)
 
 
-    # Convert coordinates from skewed system to Cartesian system (origin at left)
+    // Convert coordinates from skewed system to Cartesian system (origin at left)
     
     a = np.array([[1,(-1/sqrt(3))], [1,(1/sqrt(3))]])
     b = np.array([scaledX,scaledY]) 
@@ -847,54 +856,54 @@ def MortonToLatLong3D(x,y,h,face, res):
     yCoord = x[1]
 
     
-    # Get triangle face from rhombus face based on values of y.
-    # If y is negative, triangles will be downward oriented
+    // Get triangle face from rhombus face based on values of y.
+    // If y is negative, triangles will be downward oriented
     
     if yCoord >=0:
         if (face == 0):
             face = 1
-        elif (face == 1):
+        else if (face == 1):
             face = 11
-        elif (face == 2):
+        else if (face == 2):
             face = 2
-        elif (face == 3):
+        else if (face == 3):
             face = 12
-        elif (face == 4):
+        else if (face == 4):
             face = 3
-        elif (face == 5):
+        else if (face == 5):
             face = 13
-        elif (face == 6):
+        else if (face == 6):
             face = 4
-        elif (face == 7):
+        else if (face == 7):
             face = 14
-        elif (face == 8):
+        else if (face == 8):
             face = 5
-        elif (face == 9):
+        else if (face == 9):
             face = 15
     else:
         if (face == 0):
             face = 6
-        elif (face == 1):
+        else if (face == 1):
             face = 16
-        elif (face == 2):
+        else if (face == 2):
             face = 7
-        elif (face == 3):
+        else if (face == 3):
             face = 17
-        elif (face == 4):
+        else if (face == 4):
             face = 8
-        elif (face == 5):
+        else if (face == 5):
             face = 18
-        elif (face == 6):
+        else if (face == 6):
             face = 9
-        elif (face == 7):
+        else if (face == 7):
             face = 19
-        elif (face == 8):
+        else if (face == 8):
             face = 10
-        elif (face == 9):
+        else if (face == 9):
             face = 20
 
-    # Translate coordinates to center (origin) of icosahedron triangle, 
-    # taking into account triangle orientation 
+    // Translate coordinates to center (origin) of icosahedron triangle, 
+    // taking into account triangle orientation 
     
     xOrigin = 0
     yOrigin = 0
@@ -907,15 +916,15 @@ def MortonToLatLong3D(x,y,h,face, res):
         yOrigin = ((-NEWORIGY) + yCoord) * (-1) 
   
 
-    # Equation 17
+    // Equation 17
     
     Azprime = atan2(xOrigin, yOrigin)
     
-    # Equation 18
+    // Equation 18
     
     rho = sqrt((pow(xOrigin,2) + pow(yOrigin,2)))
 
-    # Adjust Azprime to fall within 0 to 120 degrees
+    // Adjust Azprime to fall within 0 to 120 degrees
     
     Azprime_adjust_multiples = 0;
     while Azprime < 0.0:
@@ -933,7 +942,7 @@ def MortonToLatLong3D(x,y,h,face, res):
     AG = (pow(RPRIME,2) * pow(TANLOWERG,2)) / (2 * ((1/(tan(Azprime))) + COTTHETA))
 
 
-    # Iteration, Azprime (plane) converges to Az (ellipsoid)
+    // Iteration, Azprime (plane) converges to Az (ellipsoid)
     
     for i in range(4):
     
@@ -950,16 +959,16 @@ def MortonToLatLong3D(x,y,h,face, res):
     Az = Azprime
  
 
-    # Equations 9-11, 23 to obtain z 
+    // Equations 9-11, 23 to obtain z 
     
     q = atan((TANLOWERG)/(cos(Az) + (sin(Az)*COTTHETA)))
 
-    # eq 10
+    // eq 10
 
     dprime = ((RPRIME * TANLOWERG) / (cos(AzprimeCopy) + (sin(AzprimeCopy) * COTTHETA)))
 
 
-    # eq 11
+    // eq 11
     
     f = dprime / (2.0 * RPRIME * sin(q / 2.0))
 
@@ -968,11 +977,11 @@ def MortonToLatLong3D(x,y,h,face, res):
     
     z = 2 * asin((rho)/(2*RPRIME*f))
      
-    # Add back 120 degree adjustments to Az
+    // Add back 120 degree adjustments to Az
 
     Az += DEG120 * Azprime_adjust_multiples
      
-    # Adjust Az to be clockwise from north (needed for final calculation)
+    // Adjust Az to be clockwise from north (needed for final calculation)
     if (face >=1 and face<=5) or (face>=11 and face<=15):
         if (Az <0):
             Az = (M_PI - (Az * (-1))) + M_PI 
@@ -984,7 +993,7 @@ def MortonToLatLong3D(x,y,h,face, res):
     
     z = z * R
     
-    # triangle center
+    // triangle center
     center = icostriangles[face]
     
     lat2, lon2 = vincentyDirect(flattening, R, center.lat * RAD2DEG, center.lon * RAD2DEG, Az * RAD2DEG, z) 
@@ -995,25 +1004,25 @@ def MortonToLatLong3D(x,y,h,face, res):
 
 def MortonToLatLong4D(x,y,h,t, face, res):
          
-    # Convert h to height above sphere/ellipsoid
+    // Convert h to height above sphere/ellipsoid
     
     height = ((-1) * hrange) + ((h /  totRange) * (2 * hrange))
 
 
-    # Convert t to time in seconds since GPS Time - Jan 6, 1980 12 AM
-    # add GPS-UTC offset back
+    // Convert t to time in seconds since GPS Time - Jan 6, 1980 12 AM
+    // add GPS-UTC offset back
     
     timeSec = round((t/totRange) * trange) + 18
     
 
-    # Scale coordinates to scale of Cartesian system
+    // Scale coordinates to scale of Cartesian system
     
     scaledX = (x/ totRange) * (-NEWORIGX *2)
     scaledY = (y/ totRange)*(-NEWORIGX*2)
 
 
-    # Convert coordinates from skewed system to Cartesian system 
-    # (origin at left of rhombus)
+    // Convert coordinates from skewed system to Cartesian system 
+    // (origin at left of rhombus)
     
     a = np.array([[1,(-1/sqrt(3))], [1,(1/sqrt(3))]])
     b = np.array([scaledX,scaledY]) 
@@ -1022,54 +1031,54 @@ def MortonToLatLong4D(x,y,h,t, face, res):
     xCoord = x[0]
     yCoord = x[1]
 
-    # Get triangle face from rhombus face based on values of y.
-    # If y is negative, triangles will be downward oriented
+    // Get triangle face from rhombus face based on values of y.
+    // If y is negative, triangles will be downward oriented
 
     if yCoord >=0:
         if (face == 0):
             face = 1
-        elif (face == 1):
+        else if (face == 1):
             face = 11
-        elif (face == 2):
+        else if (face == 2):
             face = 2
-        elif (face == 3):
+        else if (face == 3):
             face = 12
-        elif (face == 4):
+        else if (face == 4):
             face = 3
-        elif (face == 5):
+        else if (face == 5):
             face = 13
-        elif (face == 6):
+        else if (face == 6):
             face = 4
-        elif (face == 7):
+        else if (face == 7):
             face = 14
-        elif (face == 8):
+        else if (face == 8):
             face = 5
-        elif (face == 9):
+        else if (face == 9):
             face = 15
     else:
         if (face == 0):
             face = 6
-        elif (face == 1):
+        else if (face == 1):
             face = 16
-        elif (face == 2):
+        else if (face == 2):
             face = 7
-        elif (face == 3):
+        else if (face == 3):
             face = 17
-        elif (face == 4):
+        else if (face == 4):
             face = 8
-        elif (face == 5):
+        else if (face == 5):
             face = 18
-        elif (face == 6):
+        else if (face == 6):
             face = 9
-        elif (face == 7):
+        else if (face == 7):
             face = 19
-        elif (face == 8):
+        else if (face == 8):
             face = 10
-        elif (face == 9):
+        else if (face == 9):
             face = 20
 
-    # Translate coordinates to center (origin) of icosahedron triangle, 
-    # taking into account triangle orientation 
+    // Translate coordinates to center (origin) of icosahedron triangle, 
+    // taking into account triangle orientation 
     
     xOrigin = 0
     yOrigin = 0
@@ -1082,15 +1091,15 @@ def MortonToLatLong4D(x,y,h,t, face, res):
         yOrigin = ((-NEWORIGY) + yCoord) * (-1) 
   
 
-    # Equation 17
+    // Equation 17
     
     Azprime = atan2(xOrigin, yOrigin)
     
-    # Equation 18
+    // Equation 18
     
     rho = sqrt((pow(xOrigin,2) + pow(yOrigin,2)))
 
-    # Adjust Azprime to fall within 0 to 120 degrees
+    // Adjust Azprime to fall within 0 to 120 degrees
     
     Azprime_adjust_multiples = 0;
     while Azprime < 0.0:
@@ -1108,7 +1117,7 @@ def MortonToLatLong4D(x,y,h,t, face, res):
     AG = (pow(RPRIME,2) * pow(TANLOWERG,2)) / (2 * ((1/(tan(Azprime))) + COTTHETA))
 
 
-    # Iteration, Azprime (plane) converges to Az (sphere)
+    // Iteration, Azprime (plane) converges to Az (sphere)
     
     for i in range(4):
     
@@ -1125,16 +1134,16 @@ def MortonToLatLong4D(x,y,h,t, face, res):
     Az = Azprime
  
 
-    # Equations 9-11, 23 to obtain z 
+    // Equations 9-11, 23 to obtain z 
     
     q = atan((TANLOWERG)/(cos(Az) + (sin(Az)*COTTHETA)))
 
-    # eq 10
+    // eq 10
 
     dprime = ((RPRIME * TANLOWERG) / (cos(AzprimeCopy) + (sin(AzprimeCopy) * COTTHETA)))
 
 
-    # eq 11
+    // eq 11
     
     f = dprime / (2.0 * RPRIME * sin(q / 2.0))
 
@@ -1143,11 +1152,11 @@ def MortonToLatLong4D(x,y,h,t, face, res):
     
     z = 2 * asin((rho)/(2*RPRIME*f))
     
-    # Add back 120 degree adjustments to Az
+    // Add back 120 degree adjustments to Az
 
     Az += DEG120 * Azprime_adjust_multiples
     
-    # Adjust Az to be clockwise from north (needed for final calculation)
+    // Adjust Az to be clockwise from north (needed for final calculation)
     if (face >=1 and face<=5) or (face>=11 and face<=15):
         if (Az <0):
             Az = (M_PI - (Az * (-1))) + M_PI 
@@ -1160,7 +1169,7 @@ def MortonToLatLong4D(x,y,h,t, face, res):
     z = z * R
 
    
-    # triangle center
+    // triangle center
     center = icostriangles[face]
 
     lat2, lon2 = vincentyDirect(flattening, R, center.lat * RAD2DEG, center.lon * RAD2DEG, Az * RAD2DEG, z) 
@@ -1169,21 +1178,25 @@ def MortonToLatLong4D(x,y,h,t, face, res):
 
 def resolution(beamDiam):
     
-    # area, square meters
+    // area, square meters
     area = ((M_PI/4) * pow(beamDiam,2))
     
-    # area in square millimeters = importance of point
+    // area in square millimeters = importance of point
     
     areamm = area * 1000000
     
-    # find closest value in cell areas array
+    // find closest value in cell areas array
     
     res = (np.abs(cellAreas-area)).argmin()
     return res, areamm
 
 
-def  vincentyInverse(lat1, lon1, lat2, lon2) : 
-    # all values in radians!
+void  vincentyInverse(isea_geo coord1, isea_geo coord2, double *s_r, double *alpha1) { 
+    double lat1 = coord1.lat;
+    double lon1 = coord1.lon;
+    double lat2 = coord2.lat;
+    double lon2 = coord2.lon;
+    // all values in radians!
 
     if (lon1 == -M_PI):
         lon1 = M_PI
@@ -1242,8 +1255,8 @@ def  vincentyInverse(lat1, lon1, lat2, lon2) :
     Alpha1 = atan2(cosU2*sinL,  cosU1*sinU2-sinU1*cosU2*cosL)
     Alpha2 = atan2(cosU1*sinL, -sinU1*cosU2+cosU1*sinU2*cosL)
 
-    Alpha1 = (Alpha1 + 2*M_PI) % (2*M_PI); # normalise to 0..360
-    Alpha2 = (Alpha2 + 2*M_PI) % (2*M_PI); # normalise to 0..360
+    Alpha1 = (Alpha1 + 2*M_PI) % (2*M_PI); // normalise to 0..360
+    Alpha2 = (Alpha2 + 2*M_PI) % (2*M_PI); // normalise to 0..360
 
     return s/R, Alpha1
 
@@ -1278,12 +1291,12 @@ def  vincentyDirect(f, a, phi1, lembda1, alpha12, s ) :
         A = 1.0 + (u2 / 16384) * (4096 + u2 * (-768 + u2 * \
             (320 - 175 * u2) ) ) 
         B = (u2 / 1024) * (256 + u2 * (-128 + u2 * (74 - 47 * u2) ) ) 
-        # Starting with the approx 
+        // Starting with the approx 
         sigma = (s / (b * A)) 
-        last_sigma = 2.0 * sigma + 2.0   # something impossible 
+        last_sigma = 2.0 * sigma + 2.0   // something impossible 
             
-        # Iterate the following 3 eqs unitl no sig change in sigma 
-        # two_sigma_m , delta_sigma 
+        // Iterate the following 3 eqs unitl no sig change in sigma 
+        // two_sigma_m , delta_sigma 
         while ( abs( (last_sigma - sigma) / sigma) > 1.0e-9 ):
             two_sigma_m = 2 * sigma1 + sigma 
             delta_sigma = B * math.sin(sigma) * ( math.cos(two_sigma_m) \
@@ -1321,61 +1334,60 @@ def  vincentyDirect(f, a, phi1, lembda1, alpha12, s ) :
         
         return phi2, lembda2
 
-if __name__ == "__main__":
+int main() {
+    // DGGS full-resolution number
+    int maxRes = 33;  // sub-mllimeter precision
+    
+    // Specify Z range above/below surface of Earth (in meters)
+    double hrange = 5000.0;
+    int64_t timeSec = 1140874544;
+    
+    // Specify T range (seconds, GPS Time) Jan 6, 1980 -- Jan 6, 2018
+    double trange = 1199232018.0;
+    
+    // Total range of values for dimensions
+    double totRange = pow(2, maxRes);
 
-    # DGGS full-resolution number
-    maxRes=33  # sub-mllimeter precision
-    
-    # Specify Z range above/below surface of Earth (in meters)
-    hrange = 5000.0
-    timeSec = 1140874544
-    
-    # Specify T range (seconds, GPS Time) Jan 6, 1980 -- Jan 6, 2018
-    trange = 1199232018.0
-    
-    # Total range of values for dimensions
-    totRange = pow(2,maxRes)
-
-    # Connect to database
+    // Connect to database
     
     try:
         conn = psycopg2.connect("dbname='dggs' user='postgres' host='localhost' password='serengeti'")
-        # Commits every transaction by default 
+        // Commits every transaction by default 
         conn.autocommit = True
     except:
         print "I am unable to connect to the database"
 
     cur = conn.cursor()
 
-    # Read ISEA4D stats table, store in list
-    # This is a table containing statistics on each resolution in the DGGS
+    // Read ISEA4D stats table, store in list
+    // This is a table containing statistics on each resolution in the DGGS
 
     df = pandas.read_excel(r'C:\Neeraj\DGGS\ISEA4D\ISEAStats.xlsx', sheet_name='Sheet1')
     mat = df.as_matrix()
     
-    # 4th column contains cell areas in square meters
+    // 4th column contains cell areas in square meters
     cellAreas = mat[:,4]
      
     p1 = Proj(init='EPSG:28992')
     p2 = Proj(proj='latlong',datum='WGS84')
     
-    factor = 2.777777777777778 # Footprint size multiplication factor for Riegl scanner 
+    factor = 2.777777777777778 // Footprint size multiplication factor for Riegl scanner 
     
-    # Path to folder containing LAS files, set as appropriate
+    // Path to folder containing LAS files, set as appropriate
     path = "D:\\PointCloudData\\Tiled5000_2016"
 
-    # SQL string into which values to insert will be substituted
+    // SQL string into which values to insert will be substituted
     SQL2 = "%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
     
-    # Variable to store number of point currently being processed
+    // Variable to store number of point currently being processed
     counter = 0
 
-    # Pre-allocate storage in memory for posting 5 million points at once
+    // Pre-allocate storage in memory for posting 5 million points at once
     bigList = [0]* (5000000)
    
     start_time1 = time.time()
     
-    # Loop through LAS files 
+    // Loop through LAS files 
     for fn in os.listdir(path):
         try:
             loc = path + "\\" + fn
@@ -1388,28 +1400,28 @@ if __name__ == "__main__":
         z = inFile.z
         timeGPS = inFile.gps_time       
         
-        # Distances from scanner in meters and millimeters
-        # were stored in Red and Green fields of LAS file 
+        // Distances from scanner in meters and millimeters
+        // were stored in Red and Green fields of LAS file 
         disM = inFile.Red
         disMM = inFile.Green
       
         for i in range(len(x)):
             
-            # Find closest discrete resolution to point
+            // Find closest discrete resolution to point
             
             totDisM = disM[i] + (disMM[i] / 1000.0)
-            bd = (totDisM / factor) /1000.0  # beam diameter in meters
+            bd = (totDisM / factor) /1000.0  // beam diameter in meters
             resPoint, contPrec = resolution(bd)
             
-            # Project points to lat/long from RD
+            // Project points to lat/long from RD
 
             lon, lat, height = transform(p1, p2, x[i], y[i], z[i])
 
-            # Find Morton code
+            // Find Morton code
             
             code4D, code3D = computeMorton4D(lon, lat, height, timeGPS[i], hrange, trange, maxRes)
 
-            # Create tuple of values 
+            // Create tuple of values 
                 
             data = (code3D, code4D, lon,lat,height,resPoint,contPrec)
            
@@ -1422,28 +1434,29 @@ if __name__ == "__main__":
 
         if counter == 5000000:
             
-            # Convert big list of insert values into a large string
+            // Convert big list of insert values into a large string
             bigStr = ''.join(str(v) for v in bigList)
             
-            # Create a StringIO object in memory. This is required by COPY_FROM
+            // Create a StringIO object in memory. This is required by COPY_FROM
             output = StringIO(bigStr.decode('utf8'))
             print("Processing Time for 5 million points %s seconds ---" % (time.time() - start_time1))
             
             start_time2 = time.time()
             
-            # This is the fastest existing function in Psycopg2 to bulk-load data from Python to
-            # PostgreSQL: COPY_FROM
+            // This is the fastest existing function in Psycopg2 to bulk-load data from Python to
+            // PostgreSQL: COPY_FROM
             cur.copy_from(output, 'pointsnew')
 
             output.close()
             
             print("Post time for 5 million points %s seconds ---" % (time.time() - start_time2))
             
-            # Reset counter variable
+            // Reset counter variable
             counter = 0
             
-            # Preallocate space for the next 5 million points 
+            // Preallocate space for the next 5 million points 
             bigList = [0]* 5000000
 
             start_time1 = time.time()
+}
 
